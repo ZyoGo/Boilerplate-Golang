@@ -1,0 +1,18 @@
+[app]
+name = "noodle app"
+env = "development"
+port = 4000
+address = "localhost"
+cors_origin = ["localhost:4000"]
+
+[database]
+name = "db-name"
+username = "username"
+password = "password"
+address = "address-db"
+port = 5432 #port database
+maxConnection = 3
+minConnection = 1
+maxConnectionLifeTime = 20
+minConnectionLifeTime = 5
+healthCheckPeriod = "5"
