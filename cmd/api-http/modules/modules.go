@@ -96,14 +96,6 @@ func (s *server) start() int {
 	// init gin engine
 	router := gin.New()
 
-	addSrv := fmt.Sprintf("%s:%d", cfg.App.Address, cfg.App.Port)
-	srv := http.Server{
-		Handler:      router,
-		Addr:         addSrv,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-
 	// Recovery middleware recovers from any panics and writes a 500 if there was one.
 	router.Use(gin.Recovery())
 
@@ -113,27 +105,42 @@ func (s *server) start() int {
 
 	userRouter.RegisterPath(router, s.userHandlerV1)
 
+	addSrv := fmt.Sprintf("%s:%d", cfg.App.Address, cfg.App.Port)
+	srv := http.Server{
+		Handler:      router.Handler(),
+		Addr:         addSrv,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
 	go func() {
 		stdLog.Printf("Starting the server on %s", addSrv)
-		if err := srv.ListenAndServe(); err != nil {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			stdLog.Fatal(err)
 		}
 	}()
 
-	// Implement graceful shutdown.
+	// Wait for interrupt signal to gracefully shutdown the server with
+	// a timeout of 5 seconds.
 	quit := make(chan os.Signal, 1)
+	// kill (no param) default send syscall.SIGTERM
+	// kill -2 is syscall.SIGINT
+	// kill -9 is syscall. SIGKILL but can"t be catch, so don't need add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	stdLog.Println("Shutting down the server...")
+	stdLog.Println("Shutdown Server ...")
 
-	// Set a timeout for shutdown (for example, 5 seconds).
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	if err := srv.Shutdown(ctx); err != nil {
-		stdLog.Fatalf("Server shutdown error: %v", err)
+		stdLog.Fatal("Server Shutdown:", err)
 	}
-	stdLog.Println("Server gracefully stopped")
+	// catching ctx.Done(). timeout of 5 seconds.
+	select {
+	case <-ctx.Done():
+		stdLog.Println("timeout of 5 seconds.")
+	}
+	stdLog.Println("Server exiting")
 
 	return CodeSuccess
 }
