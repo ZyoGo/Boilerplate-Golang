@@ -22,10 +22,6 @@ func (s *service) CreateUser(ctx context.Context, reqBody user.User) (user.User,
 		return user.User{}, err
 	}
 
-	if err := s.userRepo.UpdateUser(ctx, reqBody); err != nil {
-		return user.User{}, err
-	}
-
 	if err := s.userRepo.Commit(ctx); err != nil {
 		return user.User{}, err
 	}

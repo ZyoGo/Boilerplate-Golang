@@ -12,10 +12,13 @@ import (
 
 	"github.com/ZyoGo/default-ddd-http/config"
 	"github.com/ZyoGo/default-ddd-http/pkg/database"
+	"github.com/gin-gonic/gin"
 
-	userHttpHandler "github.com/ZyoGo/default-ddd-http/internal/user/handler/http"
-	userRepo "github.com/ZyoGo/default-ddd-http/internal/user/modules/postgresql"
-	userService "github.com/ZyoGo/default-ddd-http/internal/user/service"
+	userCore "github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
+	userRouter "github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/http"
+	userHttpV1 "github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/http/v1"
+	userRepo "github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/repository/postgresql"
+	userService "github.com/ZyoGo/default-ddd-http/internal/user-v1/service"
 
 	_ "net/http/pprof"
 )
@@ -35,7 +38,7 @@ func Run() int {
 }
 
 type server struct {
-	userHandler *userHttpHandler.Handler
+	userHandlerV1 *userHttpV1.Handler
 }
 
 func registerModules() (*server, error) {
@@ -47,7 +50,7 @@ func registerModules() (*server, error) {
 	dbConn := database.DatabaseConnection(cfg)
 
 	var (
-		userRepository userRepo.Repository
+		userRepository userCore.Repository
 	)
 	{
 		userRepository = userRepo.NewPostgreSQL(dbConn)
@@ -55,13 +58,15 @@ func registerModules() (*server, error) {
 	}
 
 	{
-		userSvc, err := userService.New(userRepository)
+		userSvc, err := userService.New(
+			userService.WithUserRepository(userRepository),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize user service: %s", err.Error())
 		}
 
-		userHTTP := userHttpHandler.New(userSvc)
-		s.userHandler = userHTTP
+		userHTTP := userHttpV1.New(userSvc)
+		s.userHandlerV1 = userHTTP
 	}
 
 	return s, nil
@@ -88,22 +93,25 @@ func (s *server) start() int {
 	// load config
 	cfg := config.GetConfig()
 
+	// init gin engine
+	router := gin.New()
+
 	addSrv := fmt.Sprintf("%s:%d", cfg.App.Address, cfg.App.Port)
 	srv := http.Server{
+		Handler:      router,
 		Addr:         addSrv,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
-	router := http.NewServeMux()
-	srv.Handler = router
+	// Recovery middleware recovers from any panics and writes a 500 if there was one.
+	router.Use(gin.Recovery())
 
-	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("health ok"))
+	router.GET("health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	userHttpHandler.RegisterPath(router, s.userHandler)
+	userRouter.RegisterPath(router, s.userHandlerV1)
 
 	go func() {
 		stdLog.Printf("Starting the server on %s", addSrv)

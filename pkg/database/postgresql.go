@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ZyoGo/default-ddd-http/config"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -53,20 +52,6 @@ func dbConfig(cfg *config.AppConfig) *pgxpool.Config {
 	dbConfig.MaxConnIdleTime = time.Second * 5
 	dbConfig.HealthCheckPeriod = time.Second * 30
 	dbConfig.ConnConfig.ConnectTimeout = time.Second * 5
-
-	dbConfig.BeforeAcquire = func(ctx context.Context, c *pgx.Conn) bool {
-		log.Println("Before acquiring the connection pool to the database!!")
-		return true
-	}
-
-	dbConfig.AfterRelease = func(c *pgx.Conn) bool {
-		log.Println("After releasing the connection pool to the database!!")
-		return true
-	}
-
-	dbConfig.BeforeClose = func(c *pgx.Conn) {
-		log.Println("Closed the connection pool to the database!!")
-	}
 
 	return dbConfig
 }

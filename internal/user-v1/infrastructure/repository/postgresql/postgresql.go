@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ZyoGo/default-ddd-http/internal/user"
+	"github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
 	"github.com/ZyoGo/default-ddd-http/pkg/database"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,7 +17,7 @@ type postgreSQL struct {
 	pool *pgxpool.Pool
 }
 
-func NewPostgreSQL(pool *pgxpool.Pool) Repository {
+func NewPostgreSQL(pool *pgxpool.Pool) core.Repository {
 	return &postgreSQL{pool: pool}
 }
 
@@ -56,7 +56,7 @@ func (db *postgreSQL) conn(ctx context.Context) database.PGXQuerier {
 	return db.pool
 }
 
-func (repo *postgreSQL) InsertUser(ctx context.Context, user user.User) error {
+func (repo *postgreSQL) InsertUser(ctx context.Context, user core.User) error {
 	args := pgx.NamedArgs{
 		"email":    user.Email,
 		"password": user.Password,
@@ -72,7 +72,7 @@ func (repo *postgreSQL) InsertUser(ctx context.Context, user user.User) error {
 	return nil
 }
 
-func (repo *postgreSQL) FindUserByEmail(ctx context.Context, email string) (user.User, error) {
+func (repo *postgreSQL) FindUserByEmail(ctx context.Context, email string) (core.User, error) {
 	var ue userEntity
 	args := pgx.NamedArgs{
 		"email": email,
@@ -83,15 +83,15 @@ func (repo *postgreSQL) FindUserByEmail(ctx context.Context, email string) (user
 	err := repo.conn(ctx).QueryRow(ctx, queryFind, args).Scan(&ue.ID, &ue.Email, &ue.Password)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return user.User{}, errors.New("data not found")
+			return core.User{}, errors.New("data not found")
 		}
-		return user.User{}, err
+		return core.User{}, err
 	}
 
 	return ue.toDomain(), nil
 }
 
-func (repo *postgreSQL) UpdateUser(ctx context.Context, user user.User) error {
+func (repo *postgreSQL) UpdateUser(ctx context.Context, user core.User) error {
 	args := pgx.NamedArgs{
 		"id":       user.ID,
 		"email":    user.Email,
