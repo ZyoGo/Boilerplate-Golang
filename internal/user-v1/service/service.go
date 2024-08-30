@@ -16,8 +16,16 @@ func WithUserRepository(ur user.Repository) OptFunc {
 	}
 }
 
+func WithIDGenerator(id user.ID) OptFunc {
+	return func(u *UserService) (err error) {
+		u.ID = id
+		return
+	}
+}
+
 type UserService struct {
 	userRepo user.Repository
+	ID       user.ID
 }
 
 func New(opts ...OptFunc) (user.Service, error) {
@@ -33,6 +41,10 @@ func New(opts ...OptFunc) (user.Service, error) {
 		return nil, fmt.Errorf("user repository required")
 	}
 
+	if us.ID == nil {
+		return nil, fmt.Errorf("id generator required")
+	}
+
 	return us, nil
 }
 
@@ -41,5 +53,9 @@ func (svc *UserService) CreateUser(ctx context.Context, reqBody user.User) (user
 		return user.User{}, err
 	}
 
-	return user.User{}, nil
+	return user.User{
+		ID:       svc.ID.Generate(),
+		Email:    reqBody.Email,
+		Password: reqBody.Password,
+	}, nil
 }

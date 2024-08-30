@@ -12,6 +12,7 @@ import (
 
 	"github.com/ZyoGo/default-ddd-http/config"
 	"github.com/ZyoGo/default-ddd-http/pkg/database"
+	"github.com/ZyoGo/default-ddd-http/pkg/ulid"
 	"github.com/gin-gonic/gin"
 
 	userCore "github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
@@ -49,6 +50,8 @@ func registerModules() (*server, error) {
 
 	dbConn := database.DatabaseConnection(cfg)
 
+	ulidGen := ulid.NewGenerator()
+
 	var (
 		userRepository userCore.Repository
 	)
@@ -60,6 +63,7 @@ func registerModules() (*server, error) {
 	{
 		userSvc, err := userService.New(
 			userService.WithUserRepository(userRepository),
+			userService.WithIDGenerator(ulidGen),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize user service: %s", err.Error())
