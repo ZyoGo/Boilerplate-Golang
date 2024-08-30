@@ -13,5 +13,7 @@ type Repository interface {
 
 	InsertUser(ctx context.Context, user User) error
 	FindUserByEmail(ctx context.Context, email string) (User, error)
+	FindUsers(ctx context.Context, filter FindUserFilter) ([]User, error)
+	FindUserByID(ctx context.Context, id string) (User, error)
 	UpdateUser(ctx context.Context, user User) error
 }

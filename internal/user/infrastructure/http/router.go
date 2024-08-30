@@ -3,7 +3,7 @@ package http
 import (
 	"log"
 
-	v1 "github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/http/v1"
+	v1 "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http/v1"
 	"github.com/gin-gonic/gin"
 )
 

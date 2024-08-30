@@ -3,8 +3,8 @@ package http
 import (
 	"net/http"
 
-	user "github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
-	"github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/http/v1/request"
+	user "github.com/ZyoGo/default-ddd-http/internal/user/core"
+	"github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http/v1/request"
 	"github.com/gin-gonic/gin"
 )
 

@@ -1,10 +1,9 @@
 package service
 
 import (
-	"context"
 	"fmt"
 
-	user "github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
+	user "github.com/ZyoGo/default-ddd-http/internal/user/core"
 )
 
 type OptFunc func(u *UserService) error
@@ -46,16 +45,4 @@ func New(opts ...OptFunc) (user.Service, error) {
 	}
 
 	return us, nil
-}
-
-func (svc *UserService) CreateUser(ctx context.Context, reqBody user.User) (user.User, error) {
-	if err := reqBody.ValidatePassword(); err != nil {
-		return user.User{}, err
-	}
-
-	return user.User{
-		ID:       svc.ID.Generate(),
-		Email:    reqBody.Email,
-		Password: reqBody.Password,
-	}, nil
 }

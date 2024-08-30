@@ -3,7 +3,8 @@ package core
 import "errors"
 
 var (
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound     = errors.New("user not found")
+	ErrUserAlreadyExist = errors.New("user already exist")
 
 	// Error for password
 	ErrPasswordTooShort         = errors.New("password is too short; it must be at least 6 characters long")

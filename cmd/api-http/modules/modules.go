@@ -15,11 +15,11 @@ import (
 	"github.com/ZyoGo/default-ddd-http/pkg/ulid"
 	"github.com/gin-gonic/gin"
 
-	userCore "github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
-	userRouter "github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/http"
-	userHttpV1 "github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/http/v1"
-	userRepo "github.com/ZyoGo/default-ddd-http/internal/user-v1/infrastructure/repository/postgresql"
-	userService "github.com/ZyoGo/default-ddd-http/internal/user-v1/service"
+	userCore "github.com/ZyoGo/default-ddd-http/internal/user/core"
+	userRouter "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http"
+	userHttpV1 "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http/v1"
+	userRepo "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/repository/postgresql"
+	userService "github.com/ZyoGo/default-ddd-http/internal/user/service"
 
 	_ "net/http/pprof"
 )

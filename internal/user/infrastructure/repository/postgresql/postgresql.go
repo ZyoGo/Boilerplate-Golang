@@ -3,8 +3,9 @@ package postgresql
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	"github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
+	"github.com/ZyoGo/default-ddd-http/internal/user/core"
 	"github.com/ZyoGo/default-ddd-http/pkg/database"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,9 +63,7 @@ func (repo *postgreSQL) InsertUser(ctx context.Context, user core.User) error {
 		"password": user.Password,
 	}
 
-	queryInsert := `INSERT INTO users (email, password) VALUES (@email, @password)`
-
-	_, err := repo.conn(ctx).Exec(ctx, queryInsert, args)
+	_, err := repo.conn(ctx).Exec(ctx, queryInsertUser, args)
 	if err != nil {
 		return err
 	}
@@ -78,13 +77,8 @@ func (repo *postgreSQL) FindUserByEmail(ctx context.Context, email string) (core
 		"email": email,
 	}
 
-	queryFind := `SELECT email FROM users WHERE email = @email`
-
-	err := repo.conn(ctx).QueryRow(ctx, queryFind, args).Scan(&ue.ID, &ue.Email, &ue.Password)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return core.User{}, errors.New("data not found")
-		}
+	err := repo.conn(ctx).QueryRow(ctx, queryFindUserByEmail, args).Scan(&ue.Email)
+	if err != nil && err != pgx.ErrNoRows {
 		return core.User{}, err
 	}
 
@@ -94,16 +88,29 @@ func (repo *postgreSQL) FindUserByEmail(ctx context.Context, email string) (core
 func (repo *postgreSQL) UpdateUser(ctx context.Context, user core.User) error {
 	args := pgx.NamedArgs{
 		"id":       user.ID,
-		"email":    user.Email,
 		"password": user.Password,
 	}
 
-	queryUpdate := `UPDATE users SET email = @email, password = @password WHERE id = @id`
-
-	_, err := repo.conn(ctx).Exec(ctx, queryUpdate, args)
+	_, err := repo.conn(ctx).Exec(ctx, queryUpdateUser, args)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (repo *postgreSQL) FindUsers(ctx context.Context, filter core.FindUserFilter) ([]core.User, error) {
+	args := pgx.NamedArgs{}
+
+	if filter.Email != "" {
+		args["email"] = filter.Email
+	}
+
+	fmt.Println("args = ", args)
+
+	return nil, nil
+}
+
+func (repo *postgreSQL) FindUserByID(ctx context.Context, id string) (core.User, error) {
+	return core.User{}, nil
 }

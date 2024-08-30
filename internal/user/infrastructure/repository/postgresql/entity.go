@@ -1,7 +1,7 @@
 package postgresql
 
 import (
-	"github.com/ZyoGo/default-ddd-http/internal/user-v1/core"
+	"github.com/ZyoGo/default-ddd-http/internal/user/core"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -11,7 +11,7 @@ type userEntity struct {
 	Password pgtype.Text
 }
 
-func (ue userEntity) toDomain() core.User {
+func (ue *userEntity) toDomain() core.User {
 	return core.User{
 		ID:       ue.ID.String,
 		Email:    ue.Email.String,

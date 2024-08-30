@@ -1,13 +1,20 @@
 package core
 
 import (
+	"time"
 	"unicode"
 )
 
 type User struct {
-	ID       string
-	Email    string
-	Password string
+	ID        string
+	Email     string
+	Password  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (u *User) GenerateID(id string) {
+	u.ID = id
 }
 
 func (u *User) ValidatePassword() error {
@@ -43,4 +50,8 @@ func (u *User) ValidatePassword() error {
 	}
 
 	return nil
+}
+
+type FindUserFilter struct {
+	Email string
 }
