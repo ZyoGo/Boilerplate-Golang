@@ -1,19 +1,18 @@
 package main
 
 import (
-	"os"
-	"sync"
+	"log"
 
-	server "github.com/ZyoGo/default-ddd-http/cmd/api-http/modules"
+	"github.com/ZyoGo/default-ddd-http/cmd/api-http/modules"
 )
 
 func main() {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		os.Exit(server.Run())
-		defer wg.Done()
-	}()
+	c, err := modules.New()
+	if err != nil {
+		log.Fatal("failed to instantiate server ", err)
+	}
 
-	wg.Wait()
+	if err = c.Run(); err != nil {
+		log.Fatal("error when running server ", err)
+	}
 }

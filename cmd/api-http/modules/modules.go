@@ -20,63 +20,66 @@ import (
 	userHttpV1 "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http/v1"
 	userRepo "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/repository/postgresql"
 	userService "github.com/ZyoGo/default-ddd-http/internal/user/service"
-
-	_ "net/http/pprof"
 )
 
-const (
-	CodeSuccess = iota
-	CodeBadConfig
-)
-
-func Run() int {
-	m, err := registerModules()
-	if err != nil {
-		return CodeBadConfig
-	}
-
-	return m.start()
-}
-
-type server struct {
+type httpHandler struct {
 	userHandlerV1 *userHttpV1.Handler
 }
 
-func registerModules() (*server, error) {
-	s := &server{}
+type HTTPServer struct {
+	httpHandler
+	cfg *config.AppConfig
 
-	// load config
-	cfg := config.GetConfig()
+	server *http.Server
+	engine *gin.Engine
 
-	dbConn := database.DatabaseConnection(cfg)
+	closers []func(context.Context) error
+}
 
-	ulidGen := ulid.NewGenerator()
+func New() (h *HTTPServer, err error) {
+	h = &HTTPServer{}
+
+	h.cfg = config.GetConfig()
+
+	if err := h.registerModules(); err != nil {
+		return nil, err
+	}
+
+	if err := h.buildServer(); err != nil {
+		return nil, err
+	}
+
+	return h, nil
+}
+
+func (h *HTTPServer) registerModules() (err error) {
+	dbConn := database.DatabaseConnection(h.cfg)
+	ulidSvc := ulid.NewGenerator()
 
 	var (
 		userRepository userCore.Repository
 	)
 	{
 		userRepository = userRepo.NewPostgreSQL(dbConn)
-
 	}
 
 	{
 		userSvc, err := userService.New(
 			userService.WithUserRepository(userRepository),
-			userService.WithIDGenerator(ulidGen),
+			userService.WithIDGenerator(ulidSvc),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize user service: %s", err.Error())
+			return fmt.Errorf("failed to initialize user service: %s", err.Error())
 		}
 
 		userHTTP := userHttpV1.New(userSvc)
-		s.userHandlerV1 = userHTTP
+		h.userHandlerV1 = userHTTP
 	}
 
-	return s, nil
+	return
 }
 
-func (s *server) start() int {
+func (h *HTTPServer) buildServer() (err error) {
 	banner := `
 ██████╗  ██████╗ ██╗██╗     ███████╗██████╗ ██████╗ ██╗      █████╗ ████████╗███████╗    
 ██╔══██╗██╔═══██╗██║██║     ██╔════╝██╔══██╗██╔══██╗██║     ██╔══██╗╚══██╔══╝██╔════╝    
@@ -94,32 +97,32 @@ func (s *server) start() int {
 `
 	stdLog.Println(banner)
 
-	// load config
-	cfg := config.GetConfig()
-
 	// init gin engine
-	router := gin.New()
+	h.engine = gin.New()
 
 	// Recovery middleware recovers from any panics and writes a 500 if there was one.
-	router.Use(gin.Recovery())
+	h.engine.Use(gin.Recovery())
 
-	router.GET("health", func(c *gin.Context) {
+	h.engine.GET("health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	userRouter.RegisterPath(router, s.userHandlerV1)
+	userRouter.RegisterPath(h.engine, h.userHandlerV1)
 
-	addSrv := fmt.Sprintf("%s:%d", cfg.App.Address, cfg.App.Port)
-	srv := http.Server{
-		Handler:      router.Handler(),
+	addSrv := fmt.Sprintf("%s:%d", h.cfg.App.Address, h.cfg.App.Port)
+	h.server = &http.Server{
+		Handler:      h.engine.Handler(),
 		Addr:         addSrv,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 
+	return
+}
+
+func (h *HTTPServer) Run() (err error) {
 	go func() {
-		stdLog.Printf("Starting the server on %s", addSrv)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := h.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			stdLog.Fatal(err)
 		}
 	}()
@@ -136,7 +139,7 @@ func (s *server) start() int {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := h.server.Shutdown(ctx); err != nil {
 		stdLog.Fatal("Server Shutdown:", err)
 	}
 	// catching ctx.Done(). timeout of 5 seconds.
@@ -146,5 +149,5 @@ func (s *server) start() int {
 	}
 	stdLog.Println("Server exiting")
 
-	return CodeSuccess
+	return
 }
