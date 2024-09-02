@@ -22,13 +22,17 @@ func (svc *UserService) CreateUser(ctx context.Context, reqBody user.User) (user
 		return user.User{}, user.ErrUserAlreadyExist
 	}
 
-	// generate id using contract (ulid)
-	reqBody.GenerateID(svc.ID.Generate())
-	if err := svc.userRepo.InsertUser(ctx, reqBody); err != nil {
+	newUser := user.User{
+		ID:        svc.ID.Generate(),
+		Email:     reqBody.Email,
+		Password:  reqBody.Password,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := svc.userRepo.InsertUser(ctx, newUser); err != nil {
 		return user.User{}, err
 	}
 
-	return reqBody, nil
+	return newUser, nil
 }
 
 func (svc *UserService) FindUsers(ctx context.Context, filter user.FindUserFilter) ([]user.User, error) {

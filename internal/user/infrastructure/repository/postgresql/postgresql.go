@@ -59,8 +59,10 @@ func (db *postgreSQL) conn(ctx context.Context) database.PGXQuerier {
 
 func (repo *postgreSQL) InsertUser(ctx context.Context, user core.User) error {
 	args := pgx.NamedArgs{
-		"email":    user.Email,
-		"password": user.Password,
+		"id":         user.ID,
+		"email":      user.Email,
+		"password":   user.Password,
+		"created_at": user.CreatedAt,
 	}
 
 	_, err := repo.conn(ctx).Exec(ctx, queryInsertUser, args)
