@@ -13,10 +13,6 @@ type User struct {
 	UpdatedAt time.Time
 }
 
-func (u *User) GenerateID(id string) {
-	u.ID = id
-}
-
 func (u *User) ValidatePassword() error {
 	if len(u.Password) < 6 {
 		return ErrPasswordTooShort
