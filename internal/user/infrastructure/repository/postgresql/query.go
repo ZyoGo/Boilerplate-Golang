@@ -2,15 +2,17 @@ package postgresql
 
 var (
 	queryInsertUser = `
-		INSERT INTO user (
+		INSERT INTO user_account (
 			id,
 			email,
-			password
+			password,
+			created_at
 		)
 		VALUES (
 			@id,
 			@email,
 			@password,
+			@created_at
 		)
 	`
 
@@ -18,14 +20,16 @@ var (
 		SELECT
 			email
 		FROM
-			user
+			user_account
 		WHERE
 			email = @email
+		AND
+			deleted_at IS NULL
 	`
 
 	queryUpdateUser = `
 		UPDATE
-			users
+			user_account
 		SET
 			password = @password
 		WHERE
