@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 
+	"github.com/ZyoGo/default-ddd-http/internal/user/core"
 	user "github.com/ZyoGo/default-ddd-http/internal/user/core"
 )
 
@@ -22,9 +23,17 @@ func WithIDGenerator(id user.ID) OptFunc {
 	}
 }
 
+func WithHash(hash core.Hash) OptFunc {
+	return func(u *UserService) (err error) {
+		u.Hash = hash
+		return
+	}
+}
+
 type UserService struct {
 	userRepo user.Repository
 	ID       user.ID
+	Hash     user.Hash
 }
 
 func New(opts ...OptFunc) (user.Service, error) {
@@ -42,6 +51,10 @@ func New(opts ...OptFunc) (user.Service, error) {
 
 	if us.ID == nil {
 		return nil, fmt.Errorf("id generator required")
+	}
+
+	if us.Hash == nil {
+		return nil, fmt.Errorf("hash package required")
 	}
 
 	return us, nil

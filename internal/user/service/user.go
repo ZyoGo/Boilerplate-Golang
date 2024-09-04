@@ -22,10 +22,15 @@ func (svc *UserService) CreateUser(ctx context.Context, reqBody user.User) (user
 		return user.User{}, user.ErrUserAlreadyExist
 	}
 
+	hashPassword, err := svc.Hash.HashPassword(reqBody.Password)
+	if err != nil {
+		return user.User{}, err
+	}
+
 	newUser := user.User{
 		ID:        svc.ID.Generate(),
 		Email:     reqBody.Email,
-		Password:  reqBody.Password,
+		Password:  hashPassword,
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := svc.userRepo.InsertUser(ctx, newUser); err != nil {

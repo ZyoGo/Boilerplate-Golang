@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ZyoGo/default-ddd-http/config"
+	"github.com/ZyoGo/default-ddd-http/pkg/bcrypt"
 	"github.com/ZyoGo/default-ddd-http/pkg/database"
 	"github.com/ZyoGo/default-ddd-http/pkg/ulid"
 	"github.com/gin-gonic/gin"
@@ -55,6 +56,7 @@ func New() (h *HTTPServer, err error) {
 func (h *HTTPServer) registerModules() (err error) {
 	dbConn := database.DatabaseConnection(h.cfg)
 	ulidSvc := ulid.NewGenerator()
+	hashSvc := bcrypt.New()
 
 	var (
 		userRepository userCore.Repository
@@ -67,9 +69,10 @@ func (h *HTTPServer) registerModules() (err error) {
 		userSvc, err := userService.New(
 			userService.WithUserRepository(userRepository),
 			userService.WithIDGenerator(ulidSvc),
+			userService.WithHash(hashSvc),
 		)
 		if err != nil {
-			return fmt.Errorf("failed to initialize user service: %s", err.Error())
+			return fmt.Errorf("%s for user service", err.Error())
 		}
 
 		userHTTP := userHttpV1.New(userSvc)
@@ -127,6 +130,11 @@ func (h *HTTPServer) Run() (err error) {
 		}
 	}()
 
+	h.Shutdown()
+	return
+}
+
+func (h *HTTPServer) Shutdown() {
 	// Wait for interrupt signal to gracefully shutdown the server with
 	// a timeout of 5 seconds.
 	quit := make(chan os.Signal, 1)
@@ -148,6 +156,4 @@ func (h *HTTPServer) Run() (err error) {
 		stdLog.Println("timeout of 5 seconds.")
 	}
 	stdLog.Println("Server exiting")
-
-	return
 }
