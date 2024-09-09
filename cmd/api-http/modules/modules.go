@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"fmt"
-	stdLog "log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,47 +12,66 @@ import (
 	"github.com/ZyoGo/default-ddd-http/config"
 	"github.com/ZyoGo/default-ddd-http/pkg/bcrypt"
 	"github.com/ZyoGo/default-ddd-http/pkg/database"
+	"github.com/ZyoGo/default-ddd-http/pkg/logger"
 	"github.com/ZyoGo/default-ddd-http/pkg/ulid"
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 
 	userCore "github.com/ZyoGo/default-ddd-http/internal/user/core"
 	userRouter "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http"
 	userHttpV1 "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http/v1"
 	userRepo "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/repository/postgresql"
 	userService "github.com/ZyoGo/default-ddd-http/internal/user/service"
+
+	mwGin "github.com/ZyoGo/default-ddd-http/pkg/gin"
 )
 
-type httpHandler struct {
+type userHandler struct {
 	userHandlerV1 *userHttpV1.Handler
 }
 
 type HTTPServer struct {
-	httpHandler
-	cfg *config.AppConfig
+	userHandler
+	cfg    *config.AppConfig
+	logger zerolog.Logger
 
 	server *http.Server
 	engine *gin.Engine
-
-	closers []func(context.Context) error
 }
 
 func New() (h *HTTPServer, err error) {
 	h = &HTTPServer{}
 
-	h.cfg = config.GetConfig()
-
-	if err := h.registerModules(); err != nil {
+	if err := h.initConfig(); err != nil {
 		return nil, err
 	}
 
-	if err := h.buildServer(); err != nil {
+	if err := h.initLogging(); err != nil {
+		return nil, err
+	}
+
+	if err := h.initModules(); err != nil {
+		return nil, err
+	}
+
+	if err := h.initHTTPServer(); err != nil {
 		return nil, err
 	}
 
 	return h, nil
 }
 
-func (h *HTTPServer) registerModules() (err error) {
+func (h *HTTPServer) initConfig() error {
+	h.cfg = config.GetConfig()
+	return nil
+}
+
+func (h *HTTPServer) initLogging() error {
+	h.logger = logger.Get()
+	return nil
+}
+
+func (h *HTTPServer) initModules() (err error) {
 	dbConn := database.DatabaseConnection(h.cfg)
 	ulidSvc := ulid.NewGenerator()
 	hashSvc := bcrypt.New()
@@ -82,29 +100,23 @@ func (h *HTTPServer) registerModules() (err error) {
 	return
 }
 
-func (h *HTTPServer) buildServer() (err error) {
-	banner := `
-██████╗  ██████╗ ██╗██╗     ███████╗██████╗ ██████╗ ██╗      █████╗ ████████╗███████╗    
-██╔══██╗██╔═══██╗██║██║     ██╔════╝██╔══██╗██╔══██╗██║     ██╔══██╗╚══██╔══╝██╔════╝    
-██████╔╝██║   ██║██║██║     █████╗  ██████╔╝██████╔╝██║     ███████║   ██║   █████╗      
-██╔══██╗██║   ██║██║██║     ██╔══╝  ██╔══██╗██╔═══╝ ██║     ██╔══██║   ██║   ██╔══╝      
-██████╔╝╚██████╔╝██║███████╗███████╗██║  ██║██║     ███████╗██║  ██║   ██║   ███████╗    
-╚═════╝  ╚═════╝ ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝    
-                                                                                         
-███╗   ██╗ ██████╗  ██████╗ ██████╗ ██╗     ███████╗    ██████╗ ███████╗██╗   ██╗        
-████╗  ██║██╔═══██╗██╔═══██╗██╔══██╗██║     ██╔════╝    ██╔══██╗██╔════╝██║   ██║        
-██╔██╗ ██║██║   ██║██║   ██║██║  ██║██║     █████╗      ██║  ██║█████╗  ██║   ██║        
-██║╚██╗██║██║   ██║██║   ██║██║  ██║██║     ██╔══╝      ██║  ██║██╔══╝  ╚██╗ ██╔╝        
-██║ ╚████║╚██████╔╝╚██████╔╝██████╔╝███████╗███████╗    ██████╔╝███████╗ ╚████╔╝         
-╚═╝  ╚═══╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚══════╝╚══════╝    ╚═════╝ ╚══════╝  ╚═══╝          
-`
-	stdLog.Println(banner)
+// shouldSkipLogging determines if logging should be skipped for a given request.
+func shouldSkipLogging(path, method string) bool {
+	return false
+}
 
+func (h *HTTPServer) initHTTPServer() (err error) {
 	// init gin engine
 	h.engine = gin.New()
+	if h.cfg.App.Env == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
-	// Recovery middleware recovers from any panics and writes a 500 if there was one.
+	// Use middleware for recovery from panics and logging.
 	h.engine.Use(gin.Recovery())
+	h.engine.Use(mwGin.ZerologLoggerWithSkipper(h.logger, func(c *gin.Context) bool {
+		return shouldSkipLogging(c.FullPath(), c.Request.Method)
+	}))
 
 	h.engine.GET("health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
@@ -126,7 +138,7 @@ func (h *HTTPServer) buildServer() (err error) {
 func (h *HTTPServer) Run() (err error) {
 	go func() {
 		if err := h.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			stdLog.Fatal(err)
+			h.logger.Fatal().Msg(err.Error())
 		}
 	}()
 
@@ -143,19 +155,19 @@ func (h *HTTPServer) Shutdown() {
 	// kill -9 is syscall. SIGKILL but can"t be catch, so don't need add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	stdLog.Println("Shutdown Server ...")
+	h.logger.Warn().Msg("Shutdown Server ...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := h.server.Shutdown(ctx); err != nil {
-		stdLog.Fatal("Server Shutdown:", err)
+		h.logger.Fatal().Str("Server Shutdown: ", err.Error())
 	}
 
 	// catching ctx.Done(). timeout of 5 seconds.
 	select {
 	case <-ctx.Done():
-		stdLog.Println("timeout of 5 seconds.")
+		h.logger.Warn().Msg("timeout of 5 seconds.")
 	}
-	stdLog.Println("Server exiting")
+	h.logger.Warn().Msg("Server exiting")
 }
