@@ -12,5 +12,5 @@ func RegisterPath(router *gin.Engine, hV1 *v1.Handler) {
 		log.Fatal("handler v1 cannot be nil")
 	}
 
-	router.POST("v1/sign-up", hV1.CreateUser)
+	router.POST("v1/sign-up", hV1.SignUp)
 }

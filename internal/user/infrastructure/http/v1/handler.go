@@ -5,6 +5,8 @@ import (
 
 	user "github.com/ZyoGo/default-ddd-http/internal/user/core"
 	"github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http/v1/request"
+	"github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http/v1/response"
+	commonHTTP "github.com/ZyoGo/default-ddd-http/pkg/http"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,8 +18,8 @@ func New(userSvc user.Service) *Handler {
 	return &Handler{userSvc}
 }
 
-func (h *Handler) CreateUser(c *gin.Context) {
-	reqBody := new(request.CreateUser)
+func (h *Handler) SignUp(c *gin.Context) {
+	reqBody := new(request.SignUp)
 
 	if err := c.ShouldBindJSON(&reqBody); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -26,18 +28,14 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	dto := CreateUserDTO(reqBody)
-	result, err := h.userSvc.CreateUser(c.Request.Context(), dto)
+	dto := SignUpDTO(reqBody)
+	result, err := h.userSvc.SignUp(c.Request.Context(), dto)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		errResp := commonHTTP.RenderErrResp(err)
+		c.JSON(errResp.Code, errResp)
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    http.StatusCreated,
-		"message": "SUCCESS",
-		"payload": result,
-	})
+	resp := response.SignUpResp(result.ID)
+	c.JSON(http.StatusCreated, resp)
 }

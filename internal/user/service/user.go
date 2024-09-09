@@ -5,9 +5,10 @@ import (
 	"time"
 
 	user "github.com/ZyoGo/default-ddd-http/internal/user/core"
+	"github.com/ZyoGo/default-ddd-http/pkg/derrors"
 )
 
-func (svc *UserService) CreateUser(ctx context.Context, reqBody user.User) (user.User, error) {
+func (svc *UserService) SignUp(ctx context.Context, reqBody user.User) (user.User, error) {
 	if err := reqBody.ValidatePassword(); err != nil {
 		return user.User{}, err
 	}
@@ -19,7 +20,7 @@ func (svc *UserService) CreateUser(ctx context.Context, reqBody user.User) (user
 
 	// check if user already exist
 	if userData.Email != "" {
-		return user.User{}, user.ErrUserAlreadyExist
+		return user.User{}, derrors.NewErrorf(derrors.ErrorCodeAlreadyRegistered, user.ErrUserAlreadyExist.Error())
 	}
 
 	hashPassword, err := svc.Hash.HashPassword(reqBody.Password)
