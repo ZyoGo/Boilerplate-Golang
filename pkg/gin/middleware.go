@@ -8,7 +8,6 @@ import (
 
 	"github.com/ZyoGo/default-ddd-http/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 )
 
 type bodyDumpResponseWriter struct {
@@ -23,82 +22,98 @@ func (w *bodyDumpResponseWriter) Write(b []byte) (int, error) {
 
 type Skipper func(c *gin.Context) bool
 
-func ZerologLoggerWithSkipper(log zerolog.Logger, skipper Skipper) gin.HandlerFunc {
+func ZerologLoggerWithSkipper(skipper Skipper) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
-		// Get request body
-		reqBody := []byte{}
-		contentType := c.GetHeader("Content-Type")
-		if c.Request.Body != nil {
-			reqBody, _ = io.ReadAll(c.Request.Body)
-		}
-		mapData := make(map[string]interface{})
+		// Capture request body
+		reqBody := captureRequestBody(c)
+		maskedReqBody := maskSensitiveFields(reqBody)
 
-		if len(reqBody) > 0 && contentType == "application/json" {
-			if err := json.Unmarshal(reqBody, &mapData); err != nil {
-				c.Error(err)
-			}
-		}
-		// Reset request body
-		c.Request.Body = io.NopCloser(bytes.NewBuffer(reqBody))
-
-		// Masking credentials field
-		doc := &Document{}
-		bodyMasked := doc.throughMap(mapData)
-
-		// Get response body
+		// Capture response body
 		resBody := new(bytes.Buffer)
 		writer := &bodyDumpResponseWriter{body: resBody, ResponseWriter: c.Writer}
 		c.Writer = writer
 
+		// Process the request
 		c.Next()
 
-		// Skip log
+		// Skip logging if the skipper returns true
 		if skipper != nil && skipper(c) {
 			return
 		}
 
-		resBodyMap := make(map[string]interface{})
-		if len(resBody.Bytes()) > 0 {
-			if err := json.Unmarshal(resBody.Bytes(), &resBodyMap); err != nil {
-				c.Error(err)
-			}
-		}
-		resBodyMasked := doc.throughMap(resBodyMap)
+		// Capture and mask response body
+		resBodyMap := parseJSON(resBody.Bytes())
+		maskedResBody := maskSensitiveFields(resBodyMap)
 
-		// Logging fields
-		latency := time.Since(start)
-		status := c.Writer.Status()
-		req := c.Request
+		// Log the request and response
+		logRequestResponse(c, start, maskedReqBody, maskedResBody)
+	}
+}
 
-		logEvent := logger.Get().With().
-			Int("status", status).
-			Str("latency", latency.String()).
-			Str("method", req.Method).
-			Str("uri", req.RequestURI).
-			Str("host", req.Host).
-			Str("remote_ip", c.ClientIP()).
-			Interface("headers", req.Header).
-			Interface("request_body", bodyMasked).
-			Interface("response_body", resBodyMasked).
-			Logger()
+func captureRequestBody(c *gin.Context) map[string]interface{} {
+	var body []byte
+	if c.Request.Body != nil {
+		body, _ = io.ReadAll(c.Request.Body)
+	}
 
-		// Check request ID in headers
-		id := c.GetHeader("X-Request-ID")
-		if id != "" {
-			logEvent = logEvent.With().Str("id", id).Logger()
-		}
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
-		switch {
-		case status >= 500:
-			logEvent.Error().Msg("Server Error")
-		case status >= 400:
-			logEvent.Warn().Msg("Client Error")
-		case status >= 300:
-			logEvent.Info().Msg("Redirection")
-		default:
-			logEvent.Info().Msg("Success")
-		}
+	contentType := c.GetHeader("Content-Type")
+	if contentType == "application/json" && len(body) > 0 {
+		return parseJSON(body)
+	}
+	return nil
+}
+
+func parseJSON(data []byte) map[string]interface{} {
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
+	}
+	return result
+}
+
+func maskSensitiveFields(data map[string]interface{}) map[string]interface{} {
+	if data == nil {
+		return nil
+	}
+
+	// Assuming Document is a struct that has a method throughMap
+	doc := &Document{}
+	return doc.ProcessMap(data)
+}
+
+func logRequestResponse(c *gin.Context, start time.Time, reqBody, resBody map[string]interface{}) {
+	status := c.Writer.Status()
+	latency := time.Since(start)
+	req := c.Request
+
+	logEvent := logger.Get().With().
+		Int("status", status).
+		Str("latency", latency.String()).
+		Str("method", req.Method).
+		Str("uri", req.RequestURI).
+		Str("host", req.Host).
+		Str("remote_ip", c.ClientIP()).
+		Interface("headers", req.Header).
+		Interface("request_body", reqBody).
+		Interface("response_body", resBody).
+		Logger()
+
+	if id := c.GetHeader("X-Request-ID"); id != "" {
+		logEvent = logEvent.With().Str("id", id).Logger()
+	}
+
+	switch {
+	case status >= 500:
+		logEvent.Error().Msg("Server Error")
+	case status >= 400:
+		logEvent.Warn().Msg("Client Error")
+	case status >= 300:
+		logEvent.Info().Msg("Redirection")
+	default:
+		logEvent.Info().Msg("Success")
 	}
 }

@@ -2,10 +2,9 @@ package gin
 
 import (
 	"fmt"
-	"reflect"
 )
 
-var credFields = map[string]bool{
+var sensitiveFields = map[string]bool{
 	"password": true,
 }
 
@@ -14,59 +13,43 @@ type Document struct{}
 type MapType map[string]interface{}
 type ArrayType []interface{}
 
-func (doc *Document) throughMap(docMap MapType) MapType {
-	for k, v := range docMap {
-		if v == nil {
+// ProcessMap processes a map and obfuscates sensitive fields, truncates large arrays, and recursively processes nested structures.
+func (doc *Document) ProcessMap(data MapType) MapType {
+	for key, value := range data {
+		if value == nil {
 			continue
 		}
-		vt := reflect.TypeOf(v)
-		switch vt.Kind() {
-		case reflect.Map:
-			if mv, ok := v.(map[string]interface{}); ok {
-				docMap[k] = doc.throughMap(mv)
+		switch v := value.(type) {
+		case map[string]interface{}:
+			data[key] = doc.ProcessMap(v)
+		case []interface{}:
+			if len(v) > 10 {
+				data[key] = fmt.Sprintf(`{"count" : "%d"}`, len(v))
 			} else {
-				panic("error.")
-			}
-		case reflect.Array, reflect.Slice:
-			if mv, ok := v.([]interface{}); ok {
-				if len(mv) > 10 {
-					docMap[k] = fmt.Sprintf(`{"count" : "%d"}`, len(mv))
-				} else {
-					docMap[k] = doc.throughArray(mv)
-				}
-			} else {
-				panic("error.")
+				data[key] = doc.ProcessArray(v)
 			}
 		default:
-			if credFields[k] {
-				docMap[k] = "*******"
+			if sensitiveFields[key] {
+				data[key] = "*******"
 			} else {
-				docMap[k] = v
+				data[key] = v
 			}
 		}
 	}
-	return docMap
+	return data
 }
 
-func (doc *Document) throughArray(arrayType ArrayType) ArrayType {
-	for k, v := range arrayType {
-		vt := reflect.TypeOf(v)
-		switch vt.Kind() {
-		case reflect.Map:
-			if mv, ok := v.(map[string]interface{}); ok {
-				arrayType[k] = doc.throughMap(mv)
-			} else {
-				panic("error.")
-			}
-		case reflect.Array, reflect.Slice:
-			if mv, ok := v.([]interface{}); ok {
-				arrayType[k] = doc.throughArray(mv)
-			} else {
-				panic("error.")
-			}
+// ProcessArray processes an array and recursively processes nested maps or arrays.
+func (doc *Document) ProcessArray(data ArrayType) ArrayType {
+	for i, value := range data {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			data[i] = doc.ProcessMap(v)
+		case []interface{}:
+			data[i] = doc.ProcessArray(v)
 		default:
-			arrayType[k] = v
+			data[i] = v
 		}
 	}
-	return arrayType
+	return data
 }
