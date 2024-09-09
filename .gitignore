@@ -29,3 +29,5 @@ client/
 http_client/
 
 config/*.toml
+
+logs/*
