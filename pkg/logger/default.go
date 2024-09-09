@@ -17,7 +17,7 @@ var (
 )
 
 // Get returns the initialized zerolog.Logger instance.
-func Get() zerolog.Logger {
+func Get() *zerolog.Logger {
 	// sync.Once to ensure the logger is initialized only once.
 	once.Do(func() {
 		// Configure lumberjack.Logger to handle log file rotation.
@@ -51,5 +51,5 @@ func Get() zerolog.Logger {
 	})
 
 	// Return the logger instance.
-	return log
+	return &log
 }
