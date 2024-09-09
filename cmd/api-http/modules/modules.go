@@ -15,7 +15,6 @@ import (
 	"github.com/ZyoGo/default-ddd-http/pkg/logger"
 	"github.com/ZyoGo/default-ddd-http/pkg/ulid"
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 
 	userCore "github.com/ZyoGo/default-ddd-http/internal/user/core"
 	userRouter "github.com/ZyoGo/default-ddd-http/internal/user/infrastructure/http"
@@ -32,8 +31,6 @@ type userHandler struct {
 
 type HTTPServer struct {
 	userHandler
-	cfg    *config.AppConfig
-	logger zerolog.Logger
 
 	server *http.Server
 	engine *gin.Engine
@@ -41,14 +38,6 @@ type HTTPServer struct {
 
 func New() (h *HTTPServer, err error) {
 	h = &HTTPServer{}
-
-	if err := h.initConfig(); err != nil {
-		return nil, err
-	}
-
-	if err := h.initLogging(); err != nil {
-		return nil, err
-	}
 
 	if err := h.initModules(); err != nil {
 		return nil, err
@@ -61,18 +50,8 @@ func New() (h *HTTPServer, err error) {
 	return h, nil
 }
 
-func (h *HTTPServer) initConfig() error {
-	h.cfg = config.GetConfig()
-	return nil
-}
-
-func (h *HTTPServer) initLogging() error {
-	h.logger = logger.Get()
-	return nil
-}
-
 func (h *HTTPServer) initModules() (err error) {
-	dbConn := database.DatabaseConnection(h.cfg)
+	dbConn := database.DatabaseConnection(config.GetConfig())
 	ulidSvc := ulid.NewGenerator()
 	hashSvc := bcrypt.New()
 
@@ -106,15 +85,15 @@ func shouldSkipLogging(path, method string) bool {
 }
 
 func (h *HTTPServer) initHTTPServer() (err error) {
-	// init gin engine
-	h.engine = gin.New()
-	if h.cfg.App.Env == "production" {
+	if config.GetConfig().App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// init gin engine
+	h.engine = gin.New()
 	// Use middleware for recovery from panics and logging.
 	h.engine.Use(gin.Recovery())
-	h.engine.Use(mwGin.ZerologLoggerWithSkipper(h.logger, func(c *gin.Context) bool {
+	h.engine.Use(mwGin.ZerologLoggerWithSkipper(func(c *gin.Context) bool {
 		return shouldSkipLogging(c.FullPath(), c.Request.Method)
 	}))
 
@@ -124,7 +103,7 @@ func (h *HTTPServer) initHTTPServer() (err error) {
 
 	userRouter.RegisterPath(h.engine, h.userHandlerV1)
 
-	addSrv := fmt.Sprintf("%s:%d", h.cfg.App.Address, h.cfg.App.Port)
+	addSrv := fmt.Sprintf("%s:%d", config.GetConfig().App.Address, config.GetConfig().App.Port)
 	h.server = &http.Server{
 		Handler:      h.engine.Handler(),
 		Addr:         addSrv,
@@ -138,7 +117,7 @@ func (h *HTTPServer) initHTTPServer() (err error) {
 func (h *HTTPServer) Run() (err error) {
 	go func() {
 		if err := h.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			h.logger.Fatal().Msg(err.Error())
+			logger.Get().Fatal().Msg(err.Error())
 		}
 	}()
 
@@ -155,19 +134,19 @@ func (h *HTTPServer) Shutdown() {
 	// kill -9 is syscall. SIGKILL but can"t be catch, so don't need add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	h.logger.Warn().Msg("Shutdown Server ...")
+	logger.Get().Warn().Msg("Shutdown Server ...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := h.server.Shutdown(ctx); err != nil {
-		h.logger.Fatal().Str("Server Shutdown: ", err.Error())
+		logger.Get().Fatal().Str("Server Shutdown: ", err.Error())
 	}
 
 	// catching ctx.Done(). timeout of 5 seconds.
 	select {
 	case <-ctx.Done():
-		h.logger.Warn().Msg("timeout of 5 seconds.")
+		logger.Get().Warn().Msg("timeout of 5 seconds.")
 	}
-	h.logger.Warn().Msg("Server exiting")
+	logger.Get().Warn().Msg("Server exiting")
 }
